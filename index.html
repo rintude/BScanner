@@ -1,175 +1,199 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Bold Scanner</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- OpenCV -->
+<!-- Libraries -->
 <script src="https://docs.opencv.org/4.9.0/opencv.js"></script>
-<!-- jsPDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+<!-- UI Styling -->
 <style>
+:root{
+  --primary:#ff6b00;
+  --dark:#0f0f0f;
+  --card:#1c1c1c;
+}
+*{box-sizing:border-box;}
 body{
-    font-family: Arial, sans-serif;
-    background:#111;
-    color:#fff;
-    margin:0;
-    text-align:center;
+  margin:0;
+  font-family:Inter,system-ui;
+  background:var(--dark);
+  color:#fff;
 }
 header{
-    background:#ff6b00;
-    padding:15px;
-    font-size:22px;
-    font-weight:bold;
+  padding:14px;
+  text-align:center;
+  font-size:22px;
+  font-weight:700;
+  background:linear-gradient(90deg,var(--primary),#ff9a3c);
+}
+.container{
+  max-width:520px;
+  margin:auto;
+  padding:12px;
+}
+.card{
+  background:var(--card);
+  border-radius:16px;
+  padding:12px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.controls{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+button,select{
+  flex:1;
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  font-size:15px;
 }
 button{
-    padding:10px 15px;
-    margin:5px;
-    border:none;
-    background:#ff6b00;
-    color:#fff;
-    font-size:16px;
-    border-radius:5px;
-    cursor:pointer;
+  background:var(--primary);
+  color:#fff;
+  font-weight:600;
 }
-button:hover{background:#e65c00;}
-canvas, video{
-    max-width:95%;
-    border:2px solid #444;
-    margin-top:10px;
-}
-select{
-    padding:8px;
-    margin:10px;
-    font-size:15px;
+button.secondary{background:#333;}
+select{background:#2a2a2a;color:#fff;}
+canvas,video{
+  width:100%;
+  border-radius:12px;
+  margin-top:10px;
 }
 .hidden{display:none;}
+.footer{
+  text-align:center;
+  opacity:.6;
+  font-size:12px;
+  margin-top:10px;
+}
 </style>
 </head>
 
 <body>
 <header>📄 Bold Scanner</header>
+<div class="container">
+  <div class="card">
+    <div class="controls">
+      <button onclick="openCamera()">📷 Camera</button>
+      <label class="secondary" style="flex:1">
+        <input type="file" accept="image/*" hidden onchange="loadImage(event)">📁 Upload
+      </label>
+    </div>
 
-<button onclick="startCamera()">📷 Capture</button>
-<input type="file" accept="image/*" onchange="loadImage(event)">
-<br>
+    <video id="video" class="hidden" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
 
-<video id="video" class="hidden" autoplay></video><br>
-<button onclick="takePhoto()">📸 Take Photo</button>
+    <div class="controls">
+      <button onclick="capture()">📸 Capture</button>
+      <button onclick="autoScan()">✂ Auto Scan</button>
+    </div>
 
-<canvas id="canvas"></canvas>
+    <select onchange="applyFilter(this.value)">
+      <option value="original">Original</option>
+      <option value="gray">Grayscale</option>
+      <option value="bw">Black & White</option>
+      <option value="enhance">Enhanced</option>
+    </select>
 
-<br>
-<select onchange="applyFilter(this.value)">
-    <option value="original">Original</option>
-    <option value="gray">Grayscale</option>
-    <option value="bw">Black & White</option>
-    <option value="enhance">Enhanced</option>
-</select>
+    <div class="controls">
+      <button onclick="exportPDF()">⬇ PDF</button>
+      <button class="secondary" onclick="resetAll()">♻ Reset</button>
+    </div>
+  </div>
 
-<br>
-<button onclick="scanDocument()">✂ Auto Scan</button>
-<button onclick="downloadPDF()">⬇ Download PDF</button>
+  <div class="footer">Bold Scanner • Mobile‑first • Adobe‑Scan‑like</div>
+</div>
 
 <script>
-let video = document.getElementById("video");
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
-let originalImage = null;
+let video=document.getElementById('video');
+let canvas=document.getElementById('canvas');
+let ctx=canvas.getContext('2d');
+let baseImage=null;
 
-function startCamera(){
-    navigator.mediaDevices.getUserMedia({video:true})
-    .then(stream=>{
-        video.srcObject = stream;
-        video.classList.remove("hidden");
-    });
+function openCamera(){
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+  .then(s=>{video.srcObject=s;video.classList.remove('hidden');});
 }
 
-function takePhoto(){
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video,0,0);
-    originalImage = ctx.getImageData(0,0,canvas.width,canvas.height);
+function capture(){
+  canvas.width=video.videoWidth;
+  canvas.height=video.videoHeight;
+  ctx.drawImage(video,0,0);
+  baseImage=ctx.getImageData(0,0,canvas.width,canvas.height);
 }
 
 function loadImage(e){
-    let img = new Image();
-    img.onload = ()=>{
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img,0,0);
-        originalImage = ctx.getImageData(0,0,canvas.width,canvas.height);
-    }
-    img.src = URL.createObjectURL(e.target.files[0]);
+  let img=new Image();
+  img.onload=()=>{
+    canvas.width=img.width;
+    canvas.height=img.height;
+    ctx.drawImage(img,0,0);
+    baseImage=ctx.getImageData(0,0,canvas.width,canvas.height);
+  }
+  img.src=URL.createObjectURL(e.target.files[0]);
 }
 
 function applyFilter(type){
-    if(!originalImage) return;
-    let img = new ImageData(
-        new Uint8ClampedArray(originalImage.data),
-        originalImage.width,
-        originalImage.height
-    );
-
-    for(let i=0;i<img.data.length;i+=4){
-        let r=img.data[i], g=img.data[i+1], b=img.data[i+2];
-        let gray = 0.3*r + 0.59*g + 0.11*b;
-
-        if(type==="gray"){
-            img.data[i]=img.data[i+1]=img.data[i+2]=gray;
-        }
-        else if(type==="bw"){
-            let v = gray>140?255:0;
-            img.data[i]=img.data[i+1]=img.data[i+2]=v;
-        }
-        else if(type==="enhance"){
-            let v = Math.min(255, gray*1.4);
-            img.data[i]=img.data[i+1]=img.data[i+2]=v;
-        }
-    }
-    ctx.putImageData(img,0,0);
+  if(!baseImage) return;
+  let img=new ImageData(new Uint8ClampedArray(baseImage.data),baseImage.width,baseImage.height);
+  for(let i=0;i<img.data.length;i+=4){
+    let r=img.data[i],g=img.data[i+1],b=img.data[i+2];
+    let gray=0.299*r+0.587*g+0.114*b;
+    if(type==='gray'){r=g=b=gray;}
+    if(type==='bw'){r=g=b=gray>150?255:0;}
+    if(type==='enhance'){r=g=b=Math.min(255,gray*1.6);}    
+    img.data[i]=r;img.data[i+1]=g;img.data[i+2]=b;
+  }
+  ctx.putImageData(img,0,0);
 }
 
-function scanDocument(){
-    let src = cv.imread(canvas);
-    let gray = new cv.Mat();
-    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, gray, new cv.Size(5,5),0);
-    cv.Canny(gray, gray, 75, 200);
+function autoScan(){
+  let src=cv.imread(canvas);
+  let gray=new cv.Mat();
+  cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray,gray,new cv.Size(5,5),0);
+  cv.Canny(gray,gray,50,150);
 
-    let contours = new cv.MatVector();
-    let hierarchy = new cv.Mat();
-    cv.findContours(gray, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+  let contours=new cv.MatVector();
+  let hierarchy=new cv.Mat();
+  cv.findContours(gray,contours,hierarchy,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE);
 
-    let maxArea = 0, pageContour = null;
-    for(let i=0;i<contours.size();i++){
-        let cnt = contours.get(i);
-        let peri = cv.arcLength(cnt,true);
-        let approx = new cv.Mat();
-        cv.approxPolyDP(cnt, approx, 0.02*peri, true);
-        let area = cv.contourArea(cnt);
-        if(approx.rows===4 && area>maxArea){
-            pageContour = approx;
-            maxArea = area;
-        }
-    }
+  let maxArea=0,best=null;
+  for(let i=0;i<contours.size();i++){
+    let cnt=contours.get(i);
+    let area=cv.contourArea(cnt);
+    if(area>maxArea){maxArea=area;best=cnt;}
+  }
 
-    if(pageContour){
-        let rect = cv.boundingRect(pageContour);
-        let cropped = src.roi(rect);
-        cv.imshow(canvas, cropped);
-    }
-    src.delete(); gray.delete(); contours.delete(); hierarchy.delete();
+  if(best){
+    let rect=cv.boundingRect(best);
+    let crop=src.roi(rect);
+    cv.imshow(canvas,crop);
+    crop.delete();
+  }
+  src.delete();gray.delete();contours.delete();hierarchy.delete();
 }
 
-function downloadPDF(){
-    const { jsPDF } = window.jspdf;
-    let pdf = new jsPDF("p","mm","a4");
-    let img = canvas.toDataURL("image/jpeg",1.0);
-    pdf.addImage(img,"JPEG",10,10,190,0);
-    pdf.save("Bold_Scanner.pdf");
+function exportPDF(){
+  const {jsPDF}=window.jspdf;
+  let pdf=new jsPDF('p','mm','a4');
+  let img=canvas.toDataURL('image/jpeg',0.95);
+  let w=190;
+  let h=canvas.height*(w/canvas.width);
+  pdf.addImage(img,'JPEG',10,10,w,h);
+  pdf.save('Bold_Scanner.pdf');
+}
+
+function resetAll(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  baseImage=null;
 }
 </script>
 </body>
